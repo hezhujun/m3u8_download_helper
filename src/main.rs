@@ -77,6 +77,11 @@ fn main() {
 }
 
 fn complete_uri(uri: &str, base_url: &str) -> String {
+    if let Ok(url) = Url::parse(uri) {
+        if url.has_host() {
+            return uri.to_string();
+        }
+    }
     match Url::parse(uri) {
         Ok(_) => uri.to_owned(),
         Err(_) => {
