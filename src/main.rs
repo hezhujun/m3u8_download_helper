@@ -44,10 +44,23 @@ fn main() {
             Some(key) => {
                 let uri = match &key.uri {
                     Some(uri) => {
-                        let uri = complete_uri(&uri, &args.base_url);
-                        let filename = parse_filename_from_uri(&uri, "", "");
-                        download_list.push((uri, filename.to_owned()));
-                        Some(filename)
+                        let full_uri = complete_uri(&uri, &args.base_url);
+                        
+                        // 提取URL路径部分，去掉协议和域名
+                        let parsed = Url::parse(&full_uri).expect(&format!("解析 {} 失败", full_uri));
+                        let path = parsed.path();
+                        
+                        // 构建保存路径：download目录 + 原始路径
+                        let local_path = Path::new("download").join(path.trim_start_matches('/'));
+                        let local_path_str = local_path.to_str().unwrap().to_owned();
+                        
+                        // 确保目录结构存在
+                        if let Some(parent) = local_path.parent() {
+                            std::fs::create_dir_all(parent).expect(&format!("创建目录 {} 失败", parent.to_str().unwrap()));
+                        }
+                        
+                        download_list.push((full_uri, local_path_str.clone()));
+                        Some(local_path_str)
                     },
                     None => Option::None
                 };
@@ -57,11 +70,22 @@ fn main() {
         }
 
         let uri = complete_uri(&ele.uri, &args.base_url);
-        let filename = parse_filename_from_uri(&uri, "", "");
-        let local_path = Path::new("download").join(filename);
-        let local_path = local_path.to_str().unwrap().to_owned();
-        download_list.push((uri, local_path.to_owned()));
-        ele.uri = local_path;
+        
+        // 提取URL路径部分，去掉协议和域名
+        let parsed = Url::parse(&uri).expect(&format!("解析 {} 失败", uri));
+        let path = parsed.path();
+        
+        // 构建保存路径：download目录 + 原始路径
+        let local_path = Path::new("download").join(path.trim_start_matches('/'));
+        let local_path_str = local_path.to_str().unwrap().to_owned();
+        
+        // 确保目录结构存在
+        if let Some(parent) = local_path.parent() {
+            std::fs::create_dir_all(parent).expect(&format!("创建目录 {} 失败", parent.to_str().unwrap()));
+        }
+        
+        download_list.push((uri, local_path_str.clone()));
+        ele.uri = local_path_str;
     }
 
     let local_m3u8_filepath = dirpath.join(filename);
@@ -77,11 +101,6 @@ fn main() {
 }
 
 fn complete_uri(uri: &str, base_url: &str) -> String {
-    if let Ok(url) = Url::parse(uri) {
-        if url.has_host() {
-            return uri.to_string();
-        }
-    }
     match Url::parse(uri) {
         Ok(_) => uri.to_owned(),
         Err(_) => {
@@ -89,12 +108,4 @@ fn complete_uri(uri: &str, base_url: &str) -> String {
             base_url.join(uri).unwrap().to_string()
         },
     }
-}
-
-fn parse_filename_from_uri(uri: &str, prefix: &str, suffix: &str) -> String {
-    let parsed = Url::parse(uri).expect(&format!("解析 {} 失败", uri));
-    let path = Path::new(parsed.path());
-    let file_stem = path.file_stem().unwrap().to_str().unwrap();
-    let file_ext = path.extension().unwrap().to_str().unwrap();
-    format!("{}{}{}.{}", prefix, file_stem, suffix, file_ext)
 }
